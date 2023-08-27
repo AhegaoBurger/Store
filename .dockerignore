@@ -1,0 +1,21 @@
+# Ignore the virtual environment folder if you have one
+venv/
+
+# Ignore .git directory
+.git/
+
+# Ignore cache directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore database files if any (SQLite, etc.)
+*.db
+*.db-journal
+
+# Ignore log files
+*.log
+
+# Ignore system files
+.DS_Store
