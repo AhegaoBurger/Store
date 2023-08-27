@@ -76,9 +76,9 @@ def main_menu():
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     button1 = telebot.types.InlineKeyboardButton("Service Shop", callback_data="category_menu")
     button2 = telebot.types.InlineKeyboardButton("News", callback_data="news_page")
-    button3 = telebot.types.InlineKeyboardButton("Spainopedia", callback_data="spainopedia_page")
+    # button3 = telebot.types.InlineKeyboardButton("Spainopedia", callback_data="spainopedia_page")
     button4 = telebot.types.InlineKeyboardButton("About us", callback_data="help_page")
-    markup.add(button1, button2, button3, button4)
+    markup.add(button1, button2, button4)
     return markup
 
 
@@ -91,14 +91,24 @@ def news_page():
     soup = BeautifulSoup(page.content, "html.parser")
     results = soup.find("div", class_="er-fresh-container")
     news_elements = results.find_all("div", class_="er-fresh")
-    print(news_elements)
+    
+    message_text = ""
+    unique_articles = {}  # Store unique articles
+
     for news_element in news_elements:
-        print(news_element, end="\n" * 2)
         title_elements = news_element.find("div", class_="er-item-title")
-    links = news_element.find_all('a')
-    for link in links:
-        link_url = link["href"]
-        message_text = f'<a href="https://espanarusa.com{link_url}">{title_elements.text}</a>\n'
+        title_text = title_elements.text.strip() if title_elements else "No Title"
+
+        # Check if title is already in unique_articles
+        if title_text not in unique_articles:
+            links = news_element.find_all('a')
+            for link in links:
+                link_url = link["href"]
+                unique_articles[title_text] = f"https://espanarusa.com{link_url}"
+                
+    # Generate message_text from unique_articles
+    for title, url in unique_articles.items():
+        message_text += f'• <a href="{url}">{title}</a>\n'  # Added bullet point
 
     markup.add(telebot.types.InlineKeyboardButton(text="← Main menu", callback_data="main_menu"))
     return message_text, markup
@@ -253,29 +263,38 @@ def cart_menu(cart_user_id):
     conn = connect_to_db()
     c = conn.cursor()
 
-    # Find the user's cart items
-    c.execute("SELECT service.id, service.name, service.price, service.category_id FROM service "
-              "INNER JOIN cart ON service.id = cart.service_id "
-              "WHERE cart.user_id = %s", (cart_user_id, ))
-    items = c.fetchall()
-
-    # Create an inline keyboard markup
+    # Initialize variables
     markup = telebot.types.InlineKeyboardMarkup()
+    text = ""
 
-    # Build the message to display the items
-    if items:
-        for item in items:
-            button = telebot.types.InlineKeyboardButton(item[1], callback_data=f'service_{item[3]}_{item[0]}')
-            markup.add(button)
-    else:
-        text = "Your cart is empy"
-        bot.answer_callback_query(cart_user_id, text=text, cache_time=100)
+    try:
+        # Find the user's cart items
+        c.execute("SELECT service.id, service.name, service.price, service.category_id FROM service "
+                  "INNER JOIN cart ON service.id = cart.service_id "
+                  "WHERE cart.user_id = %s", (cart_user_id, ))
+        items = c.fetchall()
 
-    services_button = telebot.types.InlineKeyboardButton(text="← Categories", callback_data="category_menu")
-    markup.add(services_button)
-    # Close the cursor and connection
-    conn.close()
-    return markup
+        # Build the message to display the items
+        if items:
+            for item in items:
+                button = telebot.types.InlineKeyboardButton(item[1], callback_data=f'service_{item[3]}_{item[0]}')
+                markup.add(button)
+        else:
+            text = "Your cart is empty"
+            bot.answer_callback_query(cart_user_id, text=text, cache_time=100)
+
+        services_button = telebot.types.InlineKeyboardButton(text="← Categories", callback_data="category_menu")
+        markup.add(services_button)
+
+    except Exception as e:
+        text = f"An error occurred while fetching cart data: {e}"
+        logging.error(text)
+
+    finally:
+        # Close the cursor and connection
+        conn.close()
+
+    return markup if not text else (text, markup)
 
 
 # Slash command handler
